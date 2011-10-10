@@ -1,0 +1,1 @@
+CodebaseHQ Ticket Explorer================================Installation------------In order to make the tool you need to create your own ownauth.php file.The file needs to do its magic and finally provide global $username and define constants API_USERNAME and API_KEY.
