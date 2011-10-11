@@ -228,7 +228,8 @@ showTicketList();
     <script type="text/javascript" src="jquery.tablesorter.min.js"></script>
     <script type="text/javascript" src="jquery.validate.min.js"></script>
     <script type="text/javascript" src="jquery-ui-1.8.16.dragndrop.min.js"></script>
-    <link rel="stylesheet" href="http://twitter.github.com/bootstrap/1.3.0/bootstrap.min.css">
+    <script type="text/javascript" src="bootstrap-modal.js"></script>
+    <link rel="stylesheet" href="bootstrap.min.css">
     <script type="text/javascript">
     var _user = '<?php echo($username);?>';
 
@@ -373,6 +374,14 @@ showTicketList();
                 $comment.val('');
             }, "json");
         });
+        
+        var $modal = $('#newstory').modal({keyboard: true});
+        $('#proposenewticket').click(function() {
+            $modal.modal('show');
+        });
+        $('#newticketclose').click(function() {
+            $modal.modal('hide');
+        });
     });
     </script>
     <style>
@@ -391,6 +400,13 @@ showTicketList();
         height: 56px;
         resize: none;
     }
+    
+    #newstory {
+        background-color: white;
+        margin-left: 10px;
+        display: none;
+    }
+    
     #newstory label {
         font-weight: bold;
     }
@@ -443,22 +459,27 @@ showTicketList();
   <div class="container">
   <h1>Currently open tickets</h1>
 <?php echo($tickets); ?>
-    <div id="newstory" class="span8">
-      <h3>Propose a new ticket</h3>
+  <button class="primary btn" id="proposenewticket">Propose new ticket</button>
+    <div id="newstory" class="span8 modal hide fade">
+      <h3>Propose new ticket</h3>
       <form method="post" action="<?php $_SERVER['PHP_SELF']; ?>">
         <div class="clearfix"><input type="text" name="summary" maxlength="60" id="summary" class="span8" placeholder="Give ticket explanatory name" /><span class="help-block"></span></div>
         <div id="content">
-        <div class="clearfix"><label>As a</label><div class="input"><input type="text" maxlength="15" name="who" placeholder="who?" /><span class="help-block"></span></div></div><br />
-        <div class="clearfix"><label>I want to</label><div class="input"><textarea name="what" placeholder="what?"></textarea><span class="help-block"></span></div></div><br />
-        <div class="clearfix"><label>in order to</label><div class="input"><input type="text" maxlength="40" name="why" placeholder="why?" /><span class="help-block"></span></div></div>
-        <div class="clearfix"><label>Priority</label><div class="input"><select name="priority">
-        <option name="critical">Critical</option>
-        <option name="high">High</option>
-        <option name="normal" selected="selected">Normal</option>
-        <option name="low">Low</option>
-        </select><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>As a</label><div class="input"><input type="text" maxlength="15" name="who" placeholder="who?" /><span class="help-block"></span></div></div><br />
+            <div class="clearfix"><label>I want to</label><div class="input"><textarea name="what" placeholder="what?"></textarea><span class="help-block"></span></div></div><br />
+            <div class="clearfix"><label>in order to</label><div class="input"><input type="text" maxlength="40" name="why" placeholder="why?" /><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>Priority</label>
+                <div class="input"><select name="priority">
+                    <option name="critical">Critical</option>
+                    <option name="high">High</option>
+                    <option name="normal" selected="selected">Normal</option>
+                    <option name="low">Low</option>
+                    </select><span class="help-block"></span>
+                </div>
+            </div>
+        </div>
         <div class="actions"><input type="submit" class="btn primary" value="Submit" />&nbsp;
-        <button class="btn">Close</button></div>
+        <button class="btn" id="newticketclose">Close</button></div>
       </form>
     </div>
   </div>
