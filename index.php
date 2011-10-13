@@ -10,6 +10,8 @@ $knownusers = array('17961' => 'Albert', '18765' => 'Valtter');
 
 // In order to retrieve all user ids, uncomment following:
 //askCodebasehq('/main/assignments', true);
+// To get priorities uncomment following
+//askCodebasehq('/main/tickets/priorities', true);
 
 function askCodebasehq($query, $debug = false) {
     $c = curl_init();
@@ -59,6 +61,7 @@ function postCodebasehq($xml, $url, $debug = false) {
     curl_close($c);
 
     if ($debug) {
+        print_r(array($xml, $url));
         exit;
     }
     return $r;
@@ -137,6 +140,7 @@ function getTicketInfo($ticketdata) {
                 $author = $userid;
             }
         }
+        $content = preg_replace('/\*\*(.+?)\*\*/s', '<strong>\\1</strong>', $content);
         if (!empty($content)) {
             $notes[] = compact('content', 'timestamp', 'author');
         }
@@ -153,9 +157,9 @@ function saveComment($id, $comment) {
     return postCodebasehq($xml, $url);
 }
 
-function addTicket($summary, $content, $priority) {
+function addTicket($summary, $content, $priority, $type = 'feature') {
     global $username;
-    $xml = '<ticket><summary>' . htmlspecialchars($summary) . '</summary></ticket>';
+    $xml = '<ticket><summary>' . htmlspecialchars($summary) . "</summary><ticket-type>$type</ticket-type><priority-id>$priority</priority-id></ticket>";
     $url = '/main/tickets';
     $r = postCodebasehq($xml, $url);
     if ($r) {
@@ -177,7 +181,7 @@ function ajaxReturnNotes() {
 
 function ajaxSaveComment() {
     $id = $_GET['ticket'];
-    $comment = $_POST['comment'];
+    $comment = stripslashes($_POST['comment']);
     if (!empty($comment) && !empty($id) && is_numeric($id) && !empty($author) && saveComment($id, $comment)) {
         header('Content-type: application/json');
         echo('{"success": true}');
@@ -193,17 +197,41 @@ function showTicketPage() {
 
 function handleNewTicket() {
     $fields = array('summary', 'who', 'what', 'why', 'priority');
-    foreach($fields as $a) {
+    extract(cleanUpPost($fields));
+    $content = "As a **$who** I want to **$what** in order to **$why**";
+    if (!addTicket($summary, $content, $priority, 'feature')) {
+        // TODO: Create error handling for this whole script
+        print_r(array($summary, $content, $priority));exit;
+    } else {
+        header('Location: ' . $_SERVER['PHP_SELF']);
+    }
+    exit;
+}
+
+function cleanUpPost($keys) {
+    $result = array();
+    foreach($keys as $a) {
         if (empty($_POST[$a])) {
             return false;
         }
-        ${$a} = $_POST[$a];
+        $result[$a] = stripslashes($_POST[$a]);
     }
-    $content = "As a **$who** I want to **$what** in order to **$why**";
-    if (!addTicket($summary, $content, $priority)) {
+    return $result;
+}
+
+function fileBugReport() {
+    $fields = array('browser', 'summary', 'content', 'priority');
+    $vars = cleanUpPost($fields);
+    extract($vars);
+    $os = $_SERVER['HTTP_USER_AGENT'];
+    $content = "$content\n\n**Browser**: $browser\n**OS:$os";
+    if (!addTicket($summary, $content, $priority, 'bug')) {
         // TODO: Create error handling for this whole script
         print_r(array($summary, $content, $priority));exit;
+    } else {
+        header('Location: ' . $_SERVER['PHP_SELF']);
     }
+    exit;
 }
 
 if (isset($_GET['getnotes'])) {
@@ -212,7 +240,9 @@ if (isset($_GET['getnotes'])) {
     showTicketPage();
 } else if (isset($_POST['comment']) && isset($_GET['ticket'])) {
     ajaxSaveComment();
-} else if (isset($_POST['summary'])) {
+} else if (isset($_POST['bug'])) {
+    fileBugReport();
+} else if (isset($_POST['story'])) {
     handleNewTicket();
 }
 showTicketList();
@@ -224,14 +254,9 @@ showTicketList();
   <head>
     <meta charset="utf-8" />
     <title>Ticket explorer</title>
-    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
-    <script type="text/javascript" src="jquery.tablesorter.min.js"></script>
-    <script type="text/javascript" src="jquery.validate.min.js"></script>
-    <script type="text/javascript" src="jquery-ui-1.8.16.dragndrop.min.js"></script>
-    <script type="text/javascript" src="bootstrap-modal.js"></script>
+    <script type="text/javascript" src="//ajax.googleapis.com/ajax/libs/jquery/1.6.4/jquery.min.js"></script>
     <link rel="stylesheet" href="bootstrap.min.css">
     <script type="text/javascript">
-    var _user = '<?php echo($username);?>';
 
     /*function openTicketPage(context) {
         var $this = $(context);
@@ -271,8 +296,7 @@ showTicketList();
                 },
                 what: {
                     required: true,
-                    minlength: 3,
-                    maxlength: 100
+                    minlength: 3
                 },
                 why: {
                     required: true,
@@ -281,8 +305,40 @@ showTicketList();
             },
             errorElement: "span",
             errorPlacement: function(error, element) {
-                error.appendTo( element.next() );
+                error.appendTo( element.parent().find('.help-block') );
             }
+        });
+        
+        $("#newbug form").validate({
+            rules: {
+                summary: {
+                    required: true,
+                    minlength: 5
+                },
+                content: {
+                    required: true,
+                    minlength: 5
+                },
+                browser: {
+                    required: true,
+                    minlength: 3
+                }
+            },
+            errorElement: "span",
+            errorPlacement: function(error, element) {
+                error.appendTo( element.parent().find('.help-block') );
+            }
+        });
+        
+        $.each([$('#newstory form textarea'), $('#addcomment textarea'), $('#newbug form textarea')], function(i,v) {
+            v.jqEasyCounter({
+                'maxChars': 200,
+                'maxCharsWarning': 150,
+                'msgText': '',
+                'msgAppendMethod': 'insertAfter',
+                'msgFontColor': 'lightgray',
+                'msgWarningColor': 'pink'
+            });
         });
 
         /*$("#tickets td").click(function() {
@@ -352,6 +408,9 @@ showTicketList();
 
                                 $comments.append(generateComment(note.content, note.author, note.timestamp));
                             }
+                            if (currentId != id) {
+                                $comments.hide();
+                            }
                         } else {
                             // if no comments
                         }
@@ -375,17 +434,18 @@ showTicketList();
             }, "json");
         });
         
-        var $modal = $('#newstory').modal({keyboard: true});
-        $('#proposenewticket').click(function() {
-            $modal.modal('show');
-        });
-        $('#newticketclose').click(function() {
-            $modal.modal('hide');
+        $('.modal-close').click(function(e) {
+            $(this).closest('.modal').first().modal('hide');
+            e.preventDefault();
         });
     });
     </script>
     <style>
+    html {
+        height: 100%;
+    }
     body {
+        overflow: hidden;
     }
 
     div.container {
@@ -396,19 +456,31 @@ showTicketList();
     .help-block {
         color: #CC4442;
     }
+    
+    #newstory .jqEasyCounterMsg {
+        position: relative;
+        top: -20px;
+    }
+    
+    #newstory .actions {
+        text-align: center;
+        padding-right: 10px;
+        padding-left: 10px;
+    }
+    
     textarea[name=need] {
         height: 56px;
         resize: none;
     }
     
-    #newstory {
-        background-color: white;
-        margin-left: 10px;
-        display: none;
-    }
-    
     #newstory label {
         font-weight: bold;
+    }
+    
+    #newstory textarea {
+        height: 128px;
+        resize: none;
+        background-color: transparent;
     }
 
     #commentsection {
@@ -436,15 +508,33 @@ showTicketList();
     #comments blockquote p, #comments blockquote small {
         display: table;
     }
+    
+    #comments blockquote strong {
+        white-space: pre-wrap;
+    }
 
     #addcomment textarea {
-        height: 35px;
+        height: 38px;
         width: 358px;
         resize: none;
+        background-color: transparent;
+    }
+    #addcomment .jqEasyCounterMsg {
+        display: inline-block;
+        width: auto !important;
+        position: absolute;
+        right: 110px;
+        bottom: 14px;
     }
     #addcomment button {
-        height: 44px;
+        height: 47px;
         width: 86px;
+    }
+    #postnewbuttons {
+        text-align: center;
+    }
+    #postnewbuttons button {
+        margin: 20px;
     }
     </style>
   </head>
@@ -459,29 +549,61 @@ showTicketList();
   <div class="container">
   <h1>Currently open tickets</h1>
 <?php echo($tickets); ?>
-  <button class="primary btn" id="proposenewticket">Propose new ticket</button>
-    <div id="newstory" class="span8 modal hide fade">
-      <h3>Propose new ticket</h3>
+    <div id="postnewbuttons">
+        <button class="primary btn" data-controls-modal="newstory">Propose a new feature</button>
+        <button class="info btn" data-controls-modal="newbug">File a bug</button>
+    </div>
+</div>
+<div id="newstory" class="modal hide fade">
+    <div class="span9">
+      <h3>Tell us a user story</h3>
       <form method="post" action="<?php $_SERVER['PHP_SELF']; ?>">
-        <div class="clearfix"><input type="text" name="summary" maxlength="60" id="summary" class="span8" placeholder="Give ticket explanatory name" /><span class="help-block"></span></div>
+        <div class="clearfix"><input type="text" name="summary" maxlength="80" class="span9" placeholder="Give ticket explanatory name" /><span class="help-block"></span></div>
         <div id="content">
-            <div class="clearfix"><label>As a</label><div class="input"><input type="text" maxlength="15" name="who" placeholder="who?" /><span class="help-block"></span></div></div><br />
-            <div class="clearfix"><label>I want to</label><div class="input"><textarea name="what" placeholder="what?"></textarea><span class="help-block"></span></div></div><br />
-            <div class="clearfix"><label>in order to</label><div class="input"><input type="text" maxlength="40" name="why" placeholder="why?" /><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>As a</label><div class="input"><input type="text" maxlength="40" name="who" placeholder="who?" /><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>I want to</label><div class="input"><textarea name="what" placeholder="what?"></textarea><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>in order to</label><div class="input"><input type="text" maxlength="60" name="why" placeholder="why?" /><span class="help-block"></span></div></div>
             <div class="clearfix"><label>Priority</label>
                 <div class="input"><select name="priority">
-                    <option name="critical">Critical</option>
-                    <option name="high">High</option>
-                    <option name="normal" selected="selected">Normal</option>
-                    <option name="low">Low</option>
+                    <option value="860265">Critical</option>
+                    <option value="860266">High</option>
+                    <option value="860267" selected="selected">Normal</option>
+                    <option value="860268">Low</option>
                     </select><span class="help-block"></span>
                 </div>
             </div>
         </div>
-        <div class="actions"><input type="submit" class="btn primary" value="Submit" />&nbsp;
-        <button class="btn" id="newticketclose">Close</button></div>
+        <div class="actions"><input type="submit" class="btn primary" name="story" value="Submit" />&nbsp;<a class="btn modal-close" href="#">Close</a></div>
       </form>
     </div>
-  </div>
-  </body>
+</div>
+<div id="newbug" class="modal hide fade">
+    <div class="span9">
+      <h3>File a bug report</h3>
+      <form method="post" action="<?php $_SERVER['PHP_SELF']; ?>">
+        <div class="clearfix"><input type="text" name="summary" maxlength="80" id="summary" class="span9" placeholder="Enter a brief description of the bug" /><span class="help-block"></span></div>
+        <div id="content">
+            <div class="clearfix"><label>Problem</label><div class="input"><textarea name="content" placeholder="what is not working?"></textarea><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>Browser</label><div class="input"><input type="text" maxlength="60" name="browser" placeholder="what's the browser and its version?" /><span class="help-block"></span></div></div>
+            <div class="clearfix"><label>Priority</label>
+                <div class="input"><select name="priority">
+                    <option value="860265">Critical</option>
+                    <option value="860266">High</option>
+                    <option value="860267" selected="selected">Normal</option>
+                    <option value="860268">Low</option>
+                    </select><span class="help-block"></span>
+                </div>
+            </div>
+        </div>
+        <div class="actions"><input type="submit" class="btn primary" name="bug" value="Submit" />&nbsp;<a class="btn modal-close" href="#">Close</a></div>
+      </form>
+    </div>
+</div>
+
+<script type="text/javascript" src="jquery.tablesorter.min.js"></script>
+<script type="text/javascript" src="jquery.validate.min.js"></script>
+<script type="text/javascript" src="jquery-ui-1.8.16.dragndrop.min.js"></script>
+<script type="text/javascript" src="bootstrap-modal.js"></script>
+<script type="text/javascript" src="jquery.jqEasyCharCounter.js"></script>
+</body>
 </html>
