@@ -182,9 +182,11 @@ function ajaxReturnNotes() {
 function ajaxSaveComment() {
     $id = $_GET['ticket'];
     $comment = stripslashes($_POST['comment']);
-    if (!empty($comment) && !empty($id) && is_numeric($id) && !empty($author) && saveComment($id, $comment)) {
+    if (!empty($comment) && is_numeric($id) && saveComment($id, $comment)) {
         header('Content-type: application/json');
         echo('{"success": true}');
+    } else {
+        header('HTTP/1.1 500 Internal Server Error');
     }
     exit;
 }
@@ -425,12 +427,17 @@ showTicketList();
         });
 
         $comment = $("#addcomment textarea", $commentsection);
-        $('#addcomment-button').click(function() {
+        $commentbutton = $('#addcomment-button');
+        $commentbutton.click(function() {
             var id = currentId;
             var comment = $comment.val();
+            $comment.attr('disabled', 'disabled').addClass('commentsending');
+            $commentbutton.attr('disabled', 'disabled');
             $.post('?ticket='+id, { 'comment': comment }, function(data) {
-                $("#comments-"+id, $commentsection).prepend(generateComment(comment, _user, "Now"));
+                $("#comments-"+id, $commentsection).prepend(generateComment(comment, "Me", "Now"));
                 $comment.val('');
+                $comment.removeAttr('disabled').removeClass('commentsending');
+                $commentbutton.removeAttr('disabled');
             }, "json");
         });
         
@@ -457,12 +464,12 @@ showTicketList();
         color: #CC4442;
     }
     
-    #newstory .jqEasyCounterMsg {
+    #newstory .jqEasyCounterMsg, #newbug .jqEasyCounterMsg {
         position: relative;
         top: -20px;
     }
     
-    #newstory .actions {
+    #newstory .actions, #newbug .actions {
         text-align: center;
         padding-right: 10px;
         padding-left: 10px;
@@ -473,11 +480,11 @@ showTicketList();
         resize: none;
     }
     
-    #newstory label {
+    #newstory label, #newbug label {
         font-weight: bold;
     }
     
-    #newstory textarea {
+    #newstory textarea, #newbug textarea {
         height: 128px;
         resize: none;
         background-color: transparent;
@@ -511,6 +518,10 @@ showTicketList();
     
     #comments blockquote strong {
         white-space: pre-wrap;
+    }
+    
+    .commentsending {
+        background: url('spinner.gif') no-repeat center center;
     }
 
     #addcomment textarea {
